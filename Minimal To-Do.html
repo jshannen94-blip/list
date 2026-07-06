@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0D0E12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Today</title>
+<style>
+  :root {
+    --bg: #0D0E12;
+    --text: #E5E5E7;
+    --dim: #46444c;
+    --ring: #3a3840;
+    --hair: #141416;
+    --strike: #46444c;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    font-weight: 300;
+    height: 100%;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  #app {
+    max-width: 520px;
+    margin: 0 auto;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* ── Header ── */
+  header { padding: 48px 34px 0; user-select: none; }
+  .date {
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-top: 12px;
+  }
+  h1 { margin: 0; font-size: 46px; font-weight: 300; letter-spacing: -0.03em; }
+  .count {
+    font-size: 13px; font-weight: 300; color: var(--dim);
+    font-variant-numeric: tabular-nums;
+    transition: opacity 0.3s;
+  }
+
+  /* ── List ── */
+  #list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 26px 34px 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .empty {
+    padding: 72px 0;
+    text-align: center;
+    color: var(--dim);
+    font-size: 18px;
+  }
+  .row {
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-y;
+  }
+  .behind {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 4px;
+    pointer-events: none;
+  }
+  .behind svg { opacity: 0; transition: opacity 0.15s; }
+  .swipe {
+    position: relative;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 20px 0;
+    cursor: pointer;
+    will-change: transform;
+  }
+  .check {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1.5px solid var(--ring);
+    display: grid;
+    place-items: center;
+  }
+  .check svg { opacity: 0; }
+  .check path { stroke: var(--bg); }
+  .row.done .check {
+    background: var(--text);
+    border-color: var(--text);
+  }
+  .row.done .check svg { opacity: 1; }
+  .txt {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    font-size: 21px;
+    font-weight: 300;
+    line-height: 1.35;
+    overflow-wrap: break-word;
+    color: var(--text);
+  }
+  .txt::after {
+    content: "";
+    position: absolute;
+    left: 0; top: 52%;
+    height: 1.5px; width: 0%;
+    background: var(--strike);
+  }
+  .row.done .txt { color: var(--dim); }
+  .row.done .txt::after { width: 100%; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Clear ── */
+  #clear {
+    align-self: center;
+    font-size: 13px;
+    font-weight: 300;
+    letter-spacing: 0.04em;
+    color: var(--dim);
+    white-space: nowrap;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+    display: none;
+  }
+  #clear:active { color: var(--text); }
+
+  /* ── Composer ── */
+  #composer {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 34px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--hair);
+  }
+  #plus {
+    font-size: 22px;
+    font-weight: 300;
+    line-height: 1;
+    color: var(--dim);
+    transition: color 0.2s, transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+    user-select: none;
+  }
+  #plus.ready { color: var(--text); cursor: pointer; }
+  #plus:active { transform: scale(0.85); }
+  #input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-weight: 300;
+    font-size: 19px;
+    padding: 6px 0;
+  }
+  #input::placeholder { color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="date" id="date"></div>
+    <div class="title-row">
+      <h1>Today</h1>
+      <div class="count" id="count"></div>
+    </div>
+  </header>
+
+  <div id="list"></div>
+
+  <div id="clear">Clear completed</div>
+
+  <div id="composer">
+    <span id="plus">+</span>
+    <input id="input" type="text" placeholder="Add a task" enterkeyhint="done" autocomplete="off" autocapitalize="sentences">
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE = "today-todo";
+  var THRESH = 88; // px swipe to delete
+
+  var todos = [];
+  try { todos = JSON.parse(localStorage.getItem(STORE)) || []; } catch (e) {}
+  if (!Array.isArray(todos)) todos = [];
+  todos.sort(function (a, b) { return (a.done === b.done) ? 0 : (a.done ? 1 : -1); });
+
+  var listEl = document.getElementById("list");
+  var countEl = document.getElementById("count");
+  var clearEl = document.getElementById("clear");
+  var input = document.getElementById("input");
+  var plus = document.getElementById("plus");
+
+  function save() { try { localStorage.setItem(STORE, JSON.stringify(todos)); } catch (e) {} }
+  function buzz(p) { if (navigator.vibrate) { try { navigator.vibrate(p); } catch (e) {} } }
+
+  document.getElementById("date").textContent =
+    new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })
+      .toUpperCase();
+
+  function svgNS(tag) { return document.createElementNS("http://www.w3.org/2000/svg", tag); }
+  function checkSvg(w) {
+    var svg = svgNS("svg");
+    svg.setAttribute("width", w); svg.setAttribute("height", w);
+    svg.setAttribute("viewBox", "0 0 14 14");
+    var p = svgNS("path");
+    p.setAttribute("d", "M2.5 7.5 L5.5 10.5 L11.5 3.5");
+    p.setAttribute("fill", "none");
+    p.setAttribute("stroke-width", "2.4");
+    p.setAttribute("stroke-linecap", "round");
+    p.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(p);
+    return svg;
+  }
+  function trashSvg() {
+    var svg = svgNS("svg");
+    svg.setAttribute("width", "22"); svg.setAttribute("height", "22");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    var g = svgNS("g");
+    g.setAttribute("fill", "none"); g.setAttribute("stroke", "#E5E5E7");
+    g.setAttribute("stroke-width", "1.6"); g.setAttribute("stroke-linecap", "round");
+    var paths = ["M4 7h16", "M9 7V5h6v2", "M6 7l1 13h10l1-13"];
+    paths.forEach(function (d) { var p = svgNS("path"); p.setAttribute("d", d); g.appendChild(p); });
+    svg.appendChild(g);
+    return svg;
+  }
+
+  function updateMeta() {
+    var done = todos.filter(function (t) { return t.done; }).length;
+    countEl.textContent = todos.length ? done + " / " + todos.length : "";
+    clearEl.style.display = done > 0 ? "block" : "none";
+  }
+
+  function ensureEmpty() {
+    var ex = listEl.querySelector(".empty");
+    if (!todos.length) {
+      if (!ex) {
+        var e = document.createElement("div");
+        e.className = "empty";
+        e.textContent = "Nothing to do.";
+        listEl.appendChild(e);
+      }
+    } else if (ex) {
+      ex.remove();
+    }
+  }
+
+  function buildRow(t, animate) {
+    var row = document.createElement("div");
+    row.className = "row" + (t.done ? " done" : "");
+    row.dataset.id = t.id;
+    if (animate) row.style.animation = "slideIn 0.3s cubic-bezier(0.22,1,0.36,1)";
+
+    var behind = document.createElement("div");
+    behind.className = "behind";
+    var trash = trashSvg();
+    behind.appendChild(trash);
+
+    var swipe = document.createElement("div");
+    swipe.className = "swipe";
+
+    var check = document.createElement("div");
+    check.className = "check";
+    check.appendChild(checkSvg("13"));
+
+    var txt = document.createElement("div");
+    txt.className = "txt";
+    txt.textContent = t.text;
+
+    swipe.appendChild(check);
+    swipe.appendChild(txt);
+    row.appendChild(behind);
+    row.appendChild(swipe);
+
+    // ── pointer: tap = toggle, swipe-left = delete ──
+    var sx = 0, sy = 0, dx = 0, dragging = false, decided = false, horiz = false, startT = 0;
+
+    swipe.addEventListener("pointerdown", function (e) {
+      dragging = true; decided = false; horiz = false;
+      sx = e.clientX; sy = e.clientY; dx = 0; startT = Date.now();
+      swipe.style.transition = "none";
+    });
+    swipe.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      dx = e.clientX - sx;
+      var dy = e.clientY - sy;
+      if (!decided && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        decided = true;
+        horiz = Math.abs(dx) > Math.abs(dy);
+        if (horiz) { try { swipe.setPointerCapture(e.pointerId); } catch (er) {} }
+      }
+      if (decided && horiz) {
+        e.preventDefault();
+        var tx = Math.min(0, dx);
+        swipe.style.transform = "translateX(" + tx + "px)";
+        var r = Math.min(1, Math.abs(tx) / THRESH);
+        trash.style.opacity = r;
+      }
+    });
+    function end() {
+      if (!dragging) return;
+      dragging = false;
+      var dur = Date.now() - startT;
+      if (decided && horiz) {
+        if (dx <= -THRESH) { removeRow(row, t.id); return; }
+        swipe.style.transition = "transform 0.25s cubic-bezier(0.22,1,0.36,1)";
+        swipe.style.transform = "translateX(0)";
+        trash.style.opacity = 0;
+      } else if (!decided && dur < 500) {
+        toggle();
+      }
+    }
+    swipe.addEventListener("pointerup", end);
+    swipe.addEventListener("pointercancel", end);
+
+    function toggle() {
+      t.done = !t.done;
+      buzz(8);
+      reorder(t);
+      save();
+      render();
+    }
+
+    return row;
+  }
+
+  function reorder(t) {
+    todos = todos.filter(function (x) { return x !== t; });
+    if (t.done) {
+      todos.push(t);
+    } else {
+      var idx = 0;
+      for (var i = 0; i < todos.length; i++) { if (!todos[i].done) idx = i + 1; }
+      todos.splice(idx, 0, t);
+    }
+  }
+
+  function removeRow(row, id) {
+    buzz(8);
+    var swipe = row.querySelector(".swipe");
+    swipe.style.transition = "transform 0.28s cubic-bezier(0.55,0,0.55,0.2)";
+    swipe.style.transform = "translateX(-110%)";
+    row.style.maxHeight = row.offsetHeight + "px";
+    row.style.transition = "max-height 0.28s ease, opacity 0.28s ease";
+    // force reflow then collapse
+    void row.offsetHeight;
+    row.style.maxHeight = "0px";
+    row.style.opacity = "0";
+    setTimeout(function () {
+      todos = todos.filter(function (x) { return String(x.id) !== String(id); });
+      save();
+      row.remove();
+      ensureEmpty();
+      updateMeta();
+    }, 290);
+  }
+
+  function render() {
+    listEl.textContent = "";
+    if (!todos.length) { ensureEmpty(); updateMeta(); return; }
+    todos.forEach(function (t) { listEl.appendChild(buildRow(t, false)); });
+    updateMeta();
+  }
+
+  // ── Add ──
+  function addTask() {
+    var text = input.value.trim();
+    if (!text) return;
+    var t = { id: Date.now() + Math.floor(Math.random() * 1000), text: text, done: false };
+    var idx = 0;
+    for (var i = 0; i < todos.length; i++) { if (!todos[i].done) idx = i + 1; }
+    todos.splice(idx, 0, t);
+    input.value = "";
+    syncPlus();
+    buzz(8);
+    save();
+    ensureEmpty();
+    var node = buildRow(t, true);
+    var firstDone = null, rows = listEl.querySelectorAll(".row");
+    for (var j = 0; j < rows.length; j++) { if (rows[j].classList.contains("done")) { firstDone = rows[j]; break; } }
+    if (firstDone) listEl.insertBefore(node, firstDone); else listEl.appendChild(node);
+    updateMeta();
+    listEl.scrollTop = node.offsetTop;
+  }
+  function syncPlus() { plus.classList.toggle("ready", input.value.trim().length > 0); }
+  input.addEventListener("input", syncPlus);
+  input.addEventListener("keydown", function (e) { if (e.key === "Enter") addTask(); });
+  plus.addEventListener("click", function () { if (input.value.trim()) addTask(); else input.focus(); });
+
+  // ── Clear completed ──
+  clearEl.addEventListener("click", function () {
+    buzz(8);
+    var rows = Array.prototype.slice.call(listEl.querySelectorAll(".row.done"));
+    rows.forEach(function (row) { removeRow(row, row.dataset.id); });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
